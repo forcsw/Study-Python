@@ -9,6 +9,7 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ProgressBar } from '@/components/learn/ProgressBar';
 
 export interface HeaderProps {
+  streak?: number;
   currentLevel?: number;
   completedLevels?: number;
   totalLevels?: number;
@@ -19,6 +20,7 @@ export interface HeaderProps {
 }
 
 export function Header({
+  streak = 0,
   currentLevel = 1,
   completedLevels = 0,
   totalLevels = 15,
