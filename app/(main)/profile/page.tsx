@@ -1,15 +1,33 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Flame, Trophy, Clock, BookOpen, Calendar, Mail, User } from 'lucide-react';
 import { useAuth, useProgress } from '@/lib/hooks';
 import { TOTAL_LEVELS } from '@/data/levels';
 import { Card } from '@/components/ui/Card';
 
 export default function ProfilePage() {
-  const { user, isAuthenticated } = useAuth();
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const { progress, completedLevels } = useProgress({
     userId: user?.id || 'guest',
   });
+
+  // 인증되지 않은 사용자는 로그인 페이지로 리다이렉트
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login?callbackUrl=/profile');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-gray-500">로딩 중...</div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated || !user) {
     return null;

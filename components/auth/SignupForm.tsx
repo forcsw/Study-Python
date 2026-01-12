@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthActions } from '@convex-dev/auth/react';
+import { useConvexAuth } from 'convex/react';
 import Link from 'next/link';
 import { Mail, Lock, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +17,7 @@ export interface SignupFormProps {
 export function SignupForm({ callbackUrl = '/learn' }: SignupFormProps) {
   const router = useRouter();
   const { signIn } = useAuthActions();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,6 +25,13 @@ export function SignupForm({ callbackUrl = '/learn' }: SignupFormProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // 이미 로그인된 사용자는 callbackUrl로 리다이렉트
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.push(callbackUrl);
+    }
+  }, [isAuthenticated, authLoading, router, callbackUrl]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
