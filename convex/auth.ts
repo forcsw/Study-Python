@@ -29,6 +29,19 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     }),
   ],
   callbacks: {
+    // OAuth 리다이렉트 처리
+    async redirect({ redirectTo }) {
+      // SITE_URL 기반으로 리다이렉트 URL 생성
+      const siteUrl = process.env.SITE_URL || "http://localhost:3000";
+
+      // 절대 URL인 경우 그대로 반환
+      if (redirectTo.startsWith("http://") || redirectTo.startsWith("https://")) {
+        return redirectTo;
+      }
+
+      // 상대 경로인 경우 SITE_URL과 결합
+      return `${siteUrl}${redirectTo.startsWith("/") ? "" : "/"}${redirectTo}`;
+    },
     // 사용자 생성/업데이트 후 프로필과 진행률 초기화
     async afterUserCreatedOrUpdated(ctx: MutationCtx, { userId, existingUserId }) {
       // 신규 사용자인 경우에만 프로필과 진행률 생성
