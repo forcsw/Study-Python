@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { useAuth, useProgress } from '@/lib/hooks';
 import { LevelSelector } from '@/components/learn/LevelSelector';
@@ -14,6 +14,7 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, isAuthenticated, isLoading: authLoading, signOutAndRedirect } = useAuth();
   const { progress, isLoading: progressLoading, completedLevels } = useProgress({
     userId: user?.id || 'guest',
@@ -23,10 +24,13 @@ export default function MainLayout({
 
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    // /learn 경로는 비로그인 접근 허용 (게스트 학습)
+    const isPublicRoute = pathname?.startsWith('/learn');
+
+    if (!authLoading && !isAuthenticated && !isPublicRoute) {
       router.push('/login');
     }
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router, pathname]);
 
   const handleLevelSelect = (levelId: number) => {
     setShowLevelSelector(false);
