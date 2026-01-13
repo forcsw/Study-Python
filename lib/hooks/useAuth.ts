@@ -53,7 +53,7 @@ export function useAuth(): UseAuthReturn {
     user: accountInfo
       ? {
           id: accountInfo.userId,
-          name: accountInfo.name,
+          name: accountInfo.nickname, // 닉네임을 표시명으로 사용
           email: accountInfo.email,
           image: accountInfo.image,
         }

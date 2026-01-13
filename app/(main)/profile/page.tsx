@@ -27,16 +27,8 @@ export default function ProfilePage() {
   const generateUploadUrl = useMutation(api.users.generateUploadUrl);
   const updateProfile = useMutation(api.users.updateProfile);
 
-  // 프로필 이미지 URL 가져오기 (storageId인 경우)
-  const profileImageStorageId = accountInfo?.image;
-  const isStorageId = profileImageStorageId && !profileImageStorageId.startsWith('http');
-  const profileImageUrl = useQuery(
-    api.users.getStorageUrl,
-    isStorageId ? { storageId: profileImageStorageId } : 'skip'
-  );
-
-  // 실제 표시할 이미지 URL (storage URL 또는 외부 URL)
-  const displayImageUrl = isStorageId ? profileImageUrl : accountInfo?.image || user?.image;
+  // 이미지 URL (서버에서 이미 변환됨)
+  const displayImageUrl = accountInfo?.image || null;
 
   // 파일 업로드 ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -145,7 +137,7 @@ export default function ProfilePage() {
 
   // 프로필 편집 모달 열기
   const openEditProfileModal = () => {
-    setEditNickname(accountInfo?.name || user?.name || '');
+    setEditNickname(accountInfo?.nickname || user?.name || '');
     setPreviewImage(null);
     setUploadingFile(null);
     setProfileError('');
@@ -329,9 +321,10 @@ export default function ProfilePage() {
 
           {/* User Info */}
           <div className="text-center sm:text-left flex-1">
+            {/* 닉네임 */}
             <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {accountInfo?.name || user.name || '사용자'}
+                {accountInfo?.nickname || user.name || '사용자'}
               </h1>
               {/* 이메일 로그인 사용자에게만 편집 버튼 표시 */}
               {isEmailLogin && (
@@ -344,6 +337,13 @@ export default function ProfilePage() {
                 </button>
               )}
             </div>
+            {/* 이메일 로그인 사용자: 이름(이메일) 표시 */}
+            {isEmailLogin && accountInfo?.email && (
+              <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-500 dark:text-gray-400 mb-1">
+                <User className="w-4 h-4" />
+                <span className="text-sm">{accountInfo.email}</span>
+              </div>
+            )}
             {/* 로그인 방식 표시 */}
             <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-600 dark:text-gray-300 mb-1">
               <Shield className="w-4 h-4" />
@@ -351,13 +351,15 @@ export default function ProfilePage() {
                 {accountInfo ? getProviderText(accountInfo.provider) : '로딩 중...'}
               </span>
             </div>
-            {/* 이메일 표시 */}
-            <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-500 dark:text-gray-400">
-              <Mail className="w-4 h-4" />
-              <span className="text-sm">
-                {accountInfo?.email || '이메일 없음'}
-              </span>
-            </div>
+            {/* Google 로그인의 경우 이메일 표시 */}
+            {!isEmailLogin && (
+              <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-500 dark:text-gray-400">
+                <Mail className="w-4 h-4" />
+                <span className="text-sm">
+                  {accountInfo?.email || '이메일 없음'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Streak Badge */}

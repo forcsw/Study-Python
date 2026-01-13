@@ -134,12 +134,36 @@ export const getCurrentUserWithAccount = query({
 
     const provider = authAccount?.provider || "unknown";
     const providerAccountId = authAccount?.providerAccountId; // 이메일 로그인의 경우 이메일
+    const email = user?.email || providerAccountId || null;
+
+    // 프로필 이미지 URL 가져오기 (storageId인 경우 URL로 변환)
+    let imageUrl: string | null = null;
+    if (profile?.image) {
+      // profile.image가 storageId인지 URL인지 확인
+      if (profile.image.startsWith("http")) {
+        imageUrl = profile.image;
+      } else {
+        // storageId인 경우 URL로 변환
+        try {
+          imageUrl = await ctx.storage.getUrl(profile.image as any);
+        } catch {
+          imageUrl = null;
+        }
+      }
+    }
+    // profile에 이미지가 없으면 user의 이미지 사용 (Google OAuth)
+    if (!imageUrl && user?.image) {
+      imageUrl = user.image;
+    }
 
     return {
       userId: String(userId),
-      name: user?.name || profile?.name || "사용자",
-      email: user?.email || providerAccountId || null,
-      image: user?.image || profile?.image || null,
+      // 닉네임: profile.name 우선, 없으면 user.name, 없으면 이메일 로컬파트
+      nickname: profile?.name || user?.name || email?.split("@")[0] || "사용자",
+      // 원래 이름: user.name (Google OAuth인 경우) 또는 이메일 주소
+      name: user?.name || email || "사용자",
+      email: email,
+      image: imageUrl,
       provider: provider, // "google" 또는 "password"
       createdAt: profile?.createdAt,
     };
