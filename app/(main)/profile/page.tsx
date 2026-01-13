@@ -337,11 +337,18 @@ export default function ProfilePage() {
                 </button>
               )}
             </div>
-            {/* 이메일 로그인 사용자: 이름(이메일) 표시 */}
-            {isEmailLogin && accountInfo?.email && (
+            {/* 이메일 로그인 사용자: 이름 표시 */}
+            {isEmailLogin && accountInfo?.name && (
               <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-500 dark:text-gray-400 mb-1">
                 <User className="w-4 h-4" />
-                <span className="text-sm">{accountInfo.email}</span>
+                <span className="text-sm">이름: {accountInfo.name}</span>
+              </div>
+            )}
+            {/* 이메일 로그인 사용자: 이메일 표시 */}
+            {isEmailLogin && accountInfo?.email && (
+              <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-500 dark:text-gray-400 mb-1">
+                <Mail className="w-4 h-4" />
+                <span className="text-sm">이메일: {accountInfo.email}</span>
               </div>
             )}
             {/* 로그인 방식 표시 */}
@@ -351,13 +358,17 @@ export default function ProfilePage() {
                 {accountInfo ? getProviderText(accountInfo.provider) : '로딩 중...'}
               </span>
             </div>
-            {/* Google 로그인의 경우 이메일 표시 */}
+            {/* Google 로그인의 경우: 이름과 이메일 표시 */}
+            {!isEmailLogin && accountInfo?.name && (
+              <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-500 dark:text-gray-400 mb-1">
+                <User className="w-4 h-4" />
+                <span className="text-sm">이름: {accountInfo.name}</span>
+              </div>
+            )}
             {!isEmailLogin && (
               <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-500 dark:text-gray-400">
                 <Mail className="w-4 h-4" />
-                <span className="text-sm">
-                  {accountInfo?.email || '이메일 없음'}
-                </span>
+                <span className="text-sm">이메일: {accountInfo?.email || '이메일 없음'}</span>
               </div>
             )}
           </div>
