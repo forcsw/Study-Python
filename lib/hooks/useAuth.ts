@@ -31,9 +31,9 @@ export function useAuth(): UseAuthReturn {
   const { signOut } = useAuthActions();
   const router = useRouter();
 
-  // 사용자 프로필 조회
-  const profile = useQuery(
-    api.users.getCurrentUser,
+  // 사용자 계정 정보 조회 (users 테이블 + profiles 테이블 통합)
+  const accountInfo = useQuery(
+    api.users.getCurrentUserWithAccount,
     isAuthenticated ? {} : 'skip'
   );
 
@@ -50,11 +50,12 @@ export function useAuth(): UseAuthReturn {
   );
 
   return {
-    user: profile
+    user: accountInfo
       ? {
-          id: profile.userId,
-          name: profile.name,
-          image: profile.image,
+          id: accountInfo.userId,
+          name: accountInfo.name,
+          email: accountInfo.email,
+          image: accountInfo.image,
         }
       : null,
     isLoading,
