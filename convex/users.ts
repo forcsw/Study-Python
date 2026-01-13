@@ -1,6 +1,11 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { action, mutation, query } from "./_generated/server";
 import { auth } from "./auth";
+import {
+  getAuthUserId,
+  retrieveAccount,
+  modifyAccountCredentials,
+} from "@convex-dev/auth/server";
 
 // 현재 인증된 사용자 정보 가져오기
 export const getCurrentUser = query({
@@ -169,6 +174,50 @@ export const deleteMyAccount = mutation({
 
     // 5. users 테이블에서 사용자 삭제
     await ctx.db.delete(userId);
+
+    return { success: true };
+  },
+});
+
+// 비밀번호 변경 (이메일 로그인 사용자만)
+export const changePassword = action({
+  args: {
+    email: v.string(),
+    currentPassword: v.string(),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, { email, currentPassword, newPassword }) => {
+    // 인증 확인
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new Error("인증이 필요합니다.");
+    }
+
+    // 새 비밀번호 유효성 검사 (최소 6자)
+    if (newPassword.length < 6) {
+      throw new Error("새 비밀번호는 최소 6자 이상이어야 합니다.");
+    }
+
+    // 현재 비밀번호와 새 비밀번호가 같은지 확인
+    if (currentPassword === newPassword) {
+      throw new Error("새 비밀번호는 현재 비밀번호와 달라야 합니다.");
+    }
+
+    // 현재 비밀번호 확인
+    try {
+      await retrieveAccount(ctx, {
+        provider: "password",
+        account: { id: email, secret: currentPassword },
+      });
+    } catch {
+      throw new Error("현재 비밀번호가 올바르지 않습니다.");
+    }
+
+    // 새 비밀번호로 변경
+    await modifyAccountCredentials(ctx, {
+      provider: "password",
+      account: { id: email, secret: newPassword },
+    });
 
     return { success: true };
   },

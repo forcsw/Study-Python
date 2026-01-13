@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flame, Trophy, Clock, BookOpen, Calendar, Mail, User, Shield, Trash2, Key } from 'lucide-react';
 import { useAuth, useProgress } from '@/lib/hooks';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { TOTAL_LEVELS } from '@/data/levels';
 import { Card } from '@/components/ui/Card';
@@ -21,11 +21,19 @@ export default function ProfilePage() {
   // 계정 정보 가져오기 (로그인 방식, 이메일 포함)
   const accountInfo = useQuery(api.users.getCurrentUserWithAccount);
   const deleteAccount = useMutation(api.users.deleteMyAccount);
+  const changePassword = useAction(api.users.changePassword);
 
   // 모달 상태
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 비밀번호 변경 폼 상태
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // 인증되지 않은 사용자는 로그인 페이지로 리다이렉트
   useEffect(() => {
@@ -48,6 +56,65 @@ export default function ProfilePage() {
       setIsDeleting(false);
       setShowDeleteModal(false);
     }
+  };
+
+  // 비밀번호 변경 처리
+  const handleChangePassword = async () => {
+    setPasswordError('');
+
+    // 유효성 검사
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('모든 필드를 입력해주세요.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('새 비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('새 비밀번호와 확인이 일치하지 않습니다.');
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      setPasswordError('새 비밀번호는 현재 비밀번호와 달라야 합니다.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await changePassword({
+        email: accountInfo?.email || '',
+        currentPassword,
+        newPassword,
+      });
+      alert('비밀번호가 성공적으로 변경되었습니다.');
+      setShowPasswordModal(false);
+      // 폼 초기화
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      console.error('비밀번호 변경 실패:', error);
+      if (error instanceof Error) {
+        setPasswordError(error.message);
+      } else {
+        setPasswordError('비밀번호 변경에 실패했습니다. 다시 시도해주세요.');
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // 비밀번호 모달 닫기 (폼 초기화 포함)
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
   };
 
   // 로그인 방식 표시 텍스트
@@ -317,22 +384,77 @@ export default function ProfilePage() {
       {isEmailLogin && (
         <Modal
           isOpen={showPasswordModal}
-          onClose={() => setShowPasswordModal(false)}
+          onClose={closePasswordModal}
           title="비밀번호 변경"
         >
           <div className="space-y-4">
-            <p className="text-gray-600 dark:text-gray-300">
-              비밀번호 변경 기능은 준비 중입니다.
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              현재는 로그아웃 후 "비밀번호 찾기" 기능을 이용해주세요.
-            </p>
-            <div className="flex justify-end mt-6">
+            {/* 에러 메시지 */}
+            {passwordError && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+              </div>
+            )}
+
+            {/* 현재 비밀번호 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                현재 비밀번호
+              </label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
+                placeholder="현재 비밀번호를 입력하세요"
+                disabled={isChangingPassword}
+              />
+            </div>
+
+            {/* 새 비밀번호 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                새 비밀번호
+              </label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
+                placeholder="새 비밀번호 (최소 6자)"
+                disabled={isChangingPassword}
+              />
+            </div>
+
+            {/* 새 비밀번호 확인 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                새 비밀번호 확인
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
+                placeholder="새 비밀번호를 다시 입력하세요"
+                disabled={isChangingPassword}
+              />
+            </div>
+
+            {/* 버튼 */}
+            <div className="flex gap-3 justify-end mt-6">
+              <Button
+                variant="outline"
+                onClick={closePasswordModal}
+                disabled={isChangingPassword}
+              >
+                취소
+              </Button>
               <Button
                 variant="primary"
-                onClick={() => setShowPasswordModal(false)}
+                onClick={handleChangePassword}
+                disabled={isChangingPassword}
               >
-                확인
+                {isChangingPassword ? '변경 중...' : '비밀번호 변경'}
               </Button>
             </div>
           </div>
