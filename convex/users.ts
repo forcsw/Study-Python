@@ -179,6 +179,101 @@ export const deleteMyAccount = mutation({
   },
 });
 
+// 이메일로 계정 정보 확인 (로그인 실패 시 도움)
+export const checkAccountByEmail = query({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, { email }) => {
+    if (!email || !email.includes("@")) {
+      return { exists: false, providers: [] };
+    }
+
+    // users 테이블에서 이메일로 검색
+    const users = await ctx.db.query("users").collect();
+    const user = users.find((u) => u.email === email);
+
+    if (!user) {
+      // authAccounts에서도 확인 (이메일 가입의 경우)
+      const accounts = await ctx.db.query("authAccounts").collect();
+      const account = accounts.find((a) => a.providerAccountId === email);
+
+      if (!account) {
+        return { exists: false, providers: [] };
+      }
+
+      // 계정이 있는 경우 provider 정보 반환
+      const userAccounts = accounts.filter(
+        (a) => a.userId === account.userId
+      );
+      const providers = userAccounts.map((a) => a.provider);
+
+      // 이메일 마스킹 (ex: for***@gmail.com)
+      const [localPart, domain] = email.split("@");
+      const maskedLocal =
+        localPart.length > 3
+          ? localPart.slice(0, 3) + "***"
+          : localPart[0] + "***";
+      const maskedEmail = `${maskedLocal}@${domain}`;
+
+      return {
+        exists: true,
+        providers,
+        maskedEmail,
+      };
+    }
+
+    // user가 있는 경우 해당 user의 모든 account 찾기
+    const accounts = await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const providers = accounts.map((a) => a.provider);
+
+    // 이메일 마스킹
+    const [localPart, domain] = email.split("@");
+    const maskedLocal =
+      localPart.length > 3
+        ? localPart.slice(0, 3) + "***"
+        : localPart[0] + "***";
+    const maskedEmail = `${maskedLocal}@${domain}`;
+
+    return {
+      exists: true,
+      providers,
+      maskedEmail,
+    };
+  },
+});
+
+// 비밀번호 재설정 (인증 없이 - 이메일 확인 후 새 비밀번호 설정)
+export const resetPassword = action({
+  args: {
+    email: v.string(),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, { email, newPassword }) => {
+    // 새 비밀번호 유효성 검사 (최소 6자)
+    if (newPassword.length < 6) {
+      throw new Error("새 비밀번호는 최소 6자 이상이어야 합니다.");
+    }
+
+    // 이메일 계정이 존재하는지 확인
+    try {
+      // 새 비밀번호로 변경 (modifyAccountCredentials는 계정이 없으면 에러)
+      await modifyAccountCredentials(ctx, {
+        provider: "password",
+        account: { id: email, secret: newPassword },
+      });
+
+      return { success: true };
+    } catch {
+      throw new Error("해당 이메일로 가입된 이메일 계정을 찾을 수 없습니다.");
+    }
+  },
+});
+
 // 비밀번호 변경 (이메일 로그인 사용자만)
 export const changePassword = action({
   args: {
