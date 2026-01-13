@@ -7,6 +7,31 @@ import {
   modifyAccountCredentials,
 } from "@convex-dev/auth/server";
 
+// 프로필 이미지 업로드를 위한 URL 생성
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("인증이 필요합니다.");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+// 저장된 파일의 URL 가져오기
+export const getStorageUrl = query({
+  args: { storageId: v.string() },
+  handler: async (ctx, args) => {
+    if (!args.storageId) return null;
+    try {
+      // storageId를 Id<"_storage"> 타입으로 변환
+      const url = await ctx.storage.getUrl(args.storageId as any);
+      return url;
+    } catch {
+      return null;
+    }
+  },
+});
+
 // 현재 인증된 사용자 정보 가져오기
 export const getCurrentUser = query({
   args: {},

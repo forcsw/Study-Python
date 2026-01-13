@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Flame, Trophy, Clock, BookOpen, Calendar, Mail, User, Shield, Trash2, Key } from 'lucide-react';
+import { Flame, Trophy, Clock, BookOpen, Calendar, Mail, User, Shield, Trash2, Key, Camera, Edit3 } from 'lucide-react';
 import { useAuth, useProgress } from '@/lib/hooks';
 import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -23,10 +23,36 @@ export default function ProfilePage() {
   const deleteAccount = useMutation(api.users.deleteMyAccount);
   const changePassword = useAction(api.users.changePassword);
 
+  // 프로필 편집용 mutation
+  const generateUploadUrl = useMutation(api.users.generateUploadUrl);
+  const updateProfile = useMutation(api.users.updateProfile);
+
+  // 프로필 이미지 URL 가져오기 (storageId인 경우)
+  const profileImageStorageId = accountInfo?.image;
+  const isStorageId = profileImageStorageId && !profileImageStorageId.startsWith('http');
+  const profileImageUrl = useQuery(
+    api.users.getStorageUrl,
+    isStorageId ? { storageId: profileImageStorageId } : 'skip'
+  );
+
+  // 실제 표시할 이미지 URL (storage URL 또는 외부 URL)
+  const displayImageUrl = isStorageId ? profileImageUrl : accountInfo?.image || user?.image;
+
+  // 파일 업로드 ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // 모달 상태
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 프로필 편집 상태
+  const [editNickname, setEditNickname] = useState('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [uploadingFile, setUploadingFile] = useState<File | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState('');
 
   // 비밀번호 변경 폼 상태
   const [currentPassword, setCurrentPassword] = useState('');
@@ -117,6 +143,106 @@ export default function ProfilePage() {
     setPasswordError('');
   };
 
+  // 프로필 편집 모달 열기
+  const openEditProfileModal = () => {
+    setEditNickname(accountInfo?.name || user?.name || '');
+    setPreviewImage(null);
+    setUploadingFile(null);
+    setProfileError('');
+    setShowEditProfileModal(true);
+  };
+
+  // 프로필 편집 모달 닫기
+  const closeEditProfileModal = () => {
+    setShowEditProfileModal(false);
+    setEditNickname('');
+    setPreviewImage(null);
+    setUploadingFile(null);
+    setProfileError('');
+  };
+
+  // 이미지 선택 처리
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 파일 크기 체크 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileError('이미지 파일은 5MB 이하만 가능합니다.');
+      return;
+    }
+
+    // 이미지 타입 체크
+    if (!file.type.startsWith('image/')) {
+      setProfileError('이미지 파일만 업로드 가능합니다.');
+      return;
+    }
+
+    setUploadingFile(file);
+    setProfileError('');
+
+    // 미리보기 생성
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 프로필 저장
+  const handleSaveProfile = async () => {
+    setProfileError('');
+
+    if (!editNickname.trim()) {
+      setProfileError('닉네임을 입력해주세요.');
+      return;
+    }
+
+    if (editNickname.trim().length > 20) {
+      setProfileError('닉네임은 20자 이하로 입력해주세요.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      let imageStorageId: string | undefined;
+
+      // 이미지 업로드
+      if (uploadingFile) {
+        const uploadUrl = await generateUploadUrl();
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': uploadingFile.type },
+          body: uploadingFile,
+        });
+
+        if (!response.ok) {
+          throw new Error('이미지 업로드에 실패했습니다.');
+        }
+
+        const { storageId } = await response.json();
+        imageStorageId = storageId;
+      }
+
+      // 프로필 업데이트
+      await updateProfile({
+        name: editNickname.trim(),
+        ...(imageStorageId && { image: imageStorageId }),
+      });
+
+      closeEditProfileModal();
+    } catch (error) {
+      console.error('프로필 저장 실패:', error);
+      if (error instanceof Error) {
+        setProfileError(error.message);
+      } else {
+        setProfileError('프로필 저장에 실패했습니다.');
+      }
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   // 로그인 방식 표시 텍스트
   const getProviderText = (provider: string) => {
     switch (provider) {
@@ -171,24 +297,53 @@ export default function ProfilePage() {
       {/* Profile Header */}
       <Card className="mb-8">
         <div className="flex flex-col sm:flex-row items-center gap-6 p-6">
-          {/* Avatar */}
-          <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center">
-            {user.image ? (
-              <img
-                src={user.image}
-                alt={user.name || '프로필'}
-                className="w-full h-full rounded-full object-cover"
-              />
-            ) : (
-              <User className="w-12 h-12 text-green-600" />
+          {/* Avatar - 이메일 로그인 사용자는 클릭하여 편집 가능 */}
+          <div className="relative">
+            <div
+              className={`w-24 h-24 bg-green-100 rounded-full flex items-center justify-center ${
+                isEmailLogin ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''
+              }`}
+              onClick={isEmailLogin ? openEditProfileModal : undefined}
+            >
+              {displayImageUrl ? (
+                <img
+                  src={displayImageUrl}
+                  alt={user.name || '프로필'}
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <User className="w-12 h-12 text-green-600" />
+              )}
+            </div>
+            {/* 이메일 로그인 사용자에게만 카메라 아이콘 표시 */}
+            {isEmailLogin && (
+              <button
+                onClick={openEditProfileModal}
+                className="absolute bottom-0 right-0 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center shadow-lg hover:bg-green-700 transition-colors"
+                title="프로필 편집"
+              >
+                <Camera className="w-4 h-4 text-white" />
+              </button>
             )}
           </div>
 
           {/* User Info */}
           <div className="text-center sm:text-left flex-1">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-              {accountInfo?.name || user.name || '사용자'}
-            </h1>
+            <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {accountInfo?.name || user.name || '사용자'}
+              </h1>
+              {/* 이메일 로그인 사용자에게만 편집 버튼 표시 */}
+              {isEmailLogin && (
+                <button
+                  onClick={openEditProfileModal}
+                  className="p-1 text-gray-400 hover:text-green-600 transition-colors"
+                  title="닉네임 편집"
+                >
+                  <Edit3 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
             {/* 로그인 방식 표시 */}
             <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-600 dark:text-gray-300 mb-1">
               <Shield className="w-4 h-4" />
@@ -455,6 +610,98 @@ export default function ProfilePage() {
                 disabled={isChangingPassword}
               >
                 {isChangingPassword ? '변경 중...' : '비밀번호 변경'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* 프로필 편집 모달 (이메일 로그인만) */}
+      {isEmailLogin && (
+        <Modal
+          isOpen={showEditProfileModal}
+          onClose={closeEditProfileModal}
+          title="프로필 편집"
+        >
+          <div className="space-y-6">
+            {/* 에러 메시지 */}
+            {profileError && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p>
+              </div>
+            )}
+
+            {/* 프로필 이미지 */}
+            <div className="flex flex-col items-center">
+              <div
+                className="relative w-32 h-32 bg-green-100 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {previewImage ? (
+                  <img
+                    src={previewImage}
+                    alt="미리보기"
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : displayImageUrl ? (
+                  <img
+                    src={displayImageUrl}
+                    alt={user.name || '프로필'}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  <User className="w-16 h-16 text-green-600" />
+                )}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full opacity-0 hover:opacity-100 transition-opacity">
+                  <Camera className="w-8 h-8 text-white" />
+                </div>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                클릭하여 이미지 변경 (최대 5MB)
+              </p>
+            </div>
+
+            {/* 닉네임 입력 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                닉네임
+              </label>
+              <input
+                type="text"
+                value={editNickname}
+                onChange={(e) => setEditNickname(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
+                placeholder="닉네임을 입력하세요 (최대 20자)"
+                maxLength={20}
+                disabled={isSavingProfile}
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {editNickname.length}/20
+              </p>
+            </div>
+
+            {/* 버튼 */}
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={closeEditProfileModal}
+                disabled={isSavingProfile}
+              >
+                취소
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSaveProfile}
+                disabled={isSavingProfile}
+              >
+                {isSavingProfile ? '저장 중...' : '저장'}
               </Button>
             </div>
           </div>
