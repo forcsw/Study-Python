@@ -1,36 +1,320 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Study Python (studycoding.kr)
 
-## Getting Started
+> 파이썬 학습 플랫폼
+> 최초 작성일: 2026-01-12
+> 최종 수정일: 2026-01-13
 
-First, run the development server:
+---
+
+## 프로젝트 목적
+
+### 왜 이 서비스를 만들었나요?
+
+프로그래밍을 배우고 싶은 많은 한국인들이 **영어로 된 코딩 명령어** 때문에 진입 장벽을 느끼고 있습니다.
+
+특히:
+- **어린이/청소년**: 영어에 익숙하지 않아 코드를 이해하기 어려움
+- **성인 입문자**: 영어 명령어의 의미를 몰라 학습 속도가 느려짐
+- **비전공자**: 프로그래밍 용어가 낯설어 포기하는 경우가 많음
+
+### 해결 방안
+
+**Study Python**은 이러한 어려움을 해결하기 위해 개발되었습니다:
+
+- **한국어 사전 제공**: 코딩 명령어/함수의 한국어 뜻 설명
+- **영어 사전 연동**: 영어 단어의 발음, 의미, 예문 제공
+- **단계별 학습**: 쉬운 것부터 차근차근 배우는 커리큘럼
+- **실습 환경**: 직접 코드를 작성하고 결과를 확인
+
+### 대상 사용자
+
+| 대상 | 특징 |
+|------|------|
+| 초등학생~고등학생 | 영어가 어려운 어린이/청소년 |
+| 성인 입문자 | 코딩을 처음 배우는 직장인, 주부 등 |
+| 비전공 대학생 | 프로그래밍 교양 수업 수강생 |
+
+---
+
+## 기술 스택
+
+| 분류 | 기술 |
+|------|------|
+| 프론트엔드 | Next.js, React, TypeScript, Tailwind CSS |
+| 백엔드/DB | Convex |
+| 인증 | @convex-dev/auth (Google OAuth, 이메일/비밀번호) |
+| 호스팅 | Vercel |
+| 도메인 | studycoding.kr (가비아) |
+
+---
+
+## 시작하기 (Getting Started)
+
+### 필수 요구사항
+
+- Node.js 18.x 이상
+- npm 또는 yarn
+
+### 설치
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 저장소 클론
+git clone [repository-url]
+cd "Study Python"
+
+# 의존성 설치
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 개발 서버 실행
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# 터미널 1: Next.js 개발 서버
+npm run dev
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# 터미널 2: Convex 개발 서버
+npx convex dev
+```
 
-## Learn More
+브라우저에서 http://localhost:3000 접속
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 환경 구성
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 환경 분리
 
-## Deploy on Vercel
+| 환경 | 도메인 | Git 브랜치 | Convex Deployment | 용도 |
+|------|--------|-----------|-------------------|------|
+| **Production** | studycoding.kr | `main` | pastel-mandrill-274 | 정식 서비스 |
+| **Development** | dev.studycoding.kr | `dev` | cheerful-beagle-175 | 개발/테스트 |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### DNS 설정 (가비아)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| 타입 | 호스트 | 값 | TTL |
+|------|--------|-----|-----|
+| A | @ | 76.76.21.21 | 1800 |
+| CNAME | www | cname.vercel-dns.com. | 600 |
+| CNAME | dev | cname.vercel-dns.com. | 600 |
+
+### Vercel 환경변수
+
+| 변수명 | Production | Preview/Development |
+|--------|------------|---------------------|
+| `NEXT_PUBLIC_CONVEX_URL` | https://pastel-mandrill-274.convex.cloud | https://cheerful-beagle-175.convex.cloud |
+| `CONVEX_DEPLOY_KEY` | prod:pastel-mandrill-274\|... | dev:cheerful-beagle-175\|... |
+
+---
+
+## 개발 워크플로우
+
+### 전체 흐름
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. git checkout dev          (개발 브랜치로 전환)       │
+│                    ↓                                    │
+│  2. npm run dev + npx convex dev  (로컬 개발)           │
+│                    ↓                                    │
+│  3. git add . → commit → push  (dev에 푸시)             │
+│                    ↓                                    │
+│  4. dev.studycoding.kr 테스트  (자동 배포됨)            │
+│                    ↓                                    │
+│  5. git checkout main → merge dev → push                │
+│                    ↓                                    │
+│  6. studycoding.kr 확인       (정식 서비스 배포 완료!)   │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 단계별 명령어
+
+```bash
+# 1. 개발 브랜치로 전환
+git checkout dev
+git pull origin dev
+
+# 2. 로컬 개발
+npm run dev          # 터미널 1
+npx convex dev       # 터미널 2
+
+# 3. 커밋 & 푸시
+git add .
+git commit -m "feat: 기능 설명"
+git push origin dev
+
+# 4. dev.studycoding.kr 에서 테스트
+
+# 5. 정식 배포
+git checkout main
+git merge dev
+git push origin main
+
+# 6. studycoding.kr 에서 확인
+```
+
+---
+
+## 트러블슈팅 & 실수 기록
+
+### 1. Vercel Preview 도메인 Save 버튼 비활성화
+
+**상황**: dev.studycoding.kr 도메인을 Preview 환경에 추가하려 했으나 Save 버튼이 눌리지 않음
+
+**원인**: Preview 환경에 연결할 Git 브랜치가 존재하지 않았음
+
+**해결**:
+```bash
+git checkout -b dev
+git push -u origin dev
+```
+
+**교훈**: Vercel Preview 도메인 설정 전에 해당 브랜치를 먼저 생성해야 함
+
+---
+
+### 2. Convex Deploy 에러: "no Convex deployment configuration found"
+
+**상황**: dev 브랜치 첫 배포 시 Convex 배포 실패
+
+**원인**: Vercel의 Preview/Development 환경에 `CONVEX_DEPLOY_KEY` 환경변수가 설정되지 않음
+
+**해결**:
+1. Vercel → Settings → Environment Variables
+2. `CONVEX_DEPLOY_KEY` 추가 (Preview + Development 환경)
+
+**교훈**: Production과 Preview/Development의 CONVEX_DEPLOY_KEY가 **다름**
+
+---
+
+### 3. 환경변수 설정 시 환경 선택 실수
+
+**상황**: CONVEX_DEPLOY_KEY를 추가했지만 Production 환경만 체크함
+
+**해결**: 같은 Key로 환경별 다른 값 설정
+- Production: prod 키
+- Preview + Development: dev 키
+
+**교훈**: 환경변수 설정 시 **어떤 환경에 적용할지** 반드시 확인
+
+---
+
+### 4. "npm warn deprecated lucia@3.2.2" 경고
+
+**상황**: 배포 로그에 lucia 패키지 deprecated 경고 표시
+
+**원인**: `@convex-dev/auth`가 내부적으로 `lucia`에 의존
+
+**현재 상태**: 경고(Warning)일 뿐, 에러 아님. 빌드/배포 정상 작동
+
+**향후 계획**: @convex-dev/auth 업데이트 대기 또는 Clerk 마이그레이션 검토
+
+---
+
+### 5. Convex DB 데이터 분리 이해
+
+| 항목 | 배포 시 변경됨? | 설명 |
+|------|----------------|------|
+| 함수 (Functions) | ✅ 변경됨 | Query, Mutation, Action |
+| 스키마 (Schema) | ✅ 변경됨 | 테이블 구조 |
+| 데이터 (Data) | ❌ 변경 안됨 | 실제 저장된 데이터 |
+
+**교훈**:
+- dev와 main의 **데이터는 완전히 분리**됨
+- 스키마 변경 시 새 필드는 `optional`로 선언 권장
+
+---
+
+## 주요 기능
+
+### 인증 시스템
+
+| 기능 | 설명 | 파일 |
+|------|------|------|
+| Google OAuth 로그인 | Google 계정으로 로그인 | `convex/auth.ts` |
+| 이메일/비밀번호 로그인 | 이메일로 회원가입 및 로그인 | `convex/auth.ts` |
+| 비밀번호 변경 | 로그인 후 프로필 페이지에서 변경 | `convex/users.ts` |
+| 비밀번호 재설정 | 로그인 실패 시 계정 확인 후 재설정 | `convex/users.ts` |
+| 회원탈퇴 | 모든 데이터 삭제 | `convex/users.ts` |
+
+### 프로필 페이지 (`/profile`)
+
+| 기능 | 설명 |
+|------|------|
+| 계정 정보 표시 | 로그인 방식 (Google/이메일), 이메일 주소 |
+| 학습 진행률 | 완료한 레벨, 달성률, 연속 학습일 등 |
+| 비밀번호 변경 | 이메일 로그인 사용자만 표시 |
+| 회원탈퇴 | 확인 모달 후 삭제 진행 |
+
+### 로그인 페이지 (`/login`)
+
+| 기능 | 설명 |
+|------|------|
+| 이메일/비밀번호 로그인 | 기본 로그인 방식 |
+| Google OAuth | "Google로 계속하기" 버튼 |
+| 계정 확인 | 로그인 실패 시 이메일로 계정 존재 여부 확인 |
+| 비밀번호 재설정 | 이메일 계정인 경우 새 비밀번호 설정 가능 |
+
+---
+
+## 자주 쓰는 명령어
+
+### Git
+
+| 상황 | 명령어 |
+|------|--------|
+| dev로 전환 | `git checkout dev` |
+| main으로 전환 | `git checkout main` |
+| 변경사항 확인 | `git status` |
+| 커밋 | `git add . && git commit -m "메시지"` |
+| 푸시 | `git push origin [브랜치명]` |
+| 머지 | `git checkout main && git merge dev` |
+
+### 개발 서버
+
+| 상황 | 명령어 |
+|------|--------|
+| Next.js 서버 | `npm run dev` |
+| Convex 서버 | `npx convex dev` |
+| 빌드 | `npm run build` |
+
+### 커밋 메시지 규칙
+
+| 접두어 | 용도 |
+|--------|------|
+| `feat:` | 새 기능 |
+| `fix:` | 버그 수정 |
+| `style:` | UI/스타일 |
+| `refactor:` | 리팩토링 |
+| `docs:` | 문서 |
+
+---
+
+## 관련 링크
+
+### 대시보드
+- [Vercel](https://vercel.com/sungwon-chos-projects/study-python)
+- [Convex](https://dashboard.convex.dev/)
+- [Google Cloud Console](https://console.cloud.google.com/)
+
+### 문서
+- [Next.js Docs](https://nextjs.org/docs)
+- [Convex Docs](https://docs.convex.dev/)
+- [Tailwind CSS](https://tailwindcss.com/docs)
+
+### 서비스 URL
+- Production: https://studycoding.kr
+- Development: https://dev.studycoding.kr
+
+---
+
+## 변경 이력
+
+| 날짜 | 내용 |
+|------|------|
+| 2026-01-12 | 프로젝트 초기 설정, 도메인 구매 및 연결 |
+| 2026-01-13 | 개발/운영 환경 분리 (dev 브랜치, Convex Development) |
+| 2026-01-13 | README 문서 통합 및 정리 |
+| 2026-01-13 | 프로필 페이지 기능 추가 (로그인 방식, 이메일 표시, 회원탈퇴) |
+| 2026-01-13 | 비밀번호 변경 기능 구현 (프로필 페이지) |
+| 2026-01-13 | 로그인 실패 시 계정 확인 및 비밀번호 재설정 기능 추가 |
+| 2026-01-13 | 헤더에 실제 사용자 이름 표시되도록 수정 |
