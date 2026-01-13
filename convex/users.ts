@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { action, mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 import { auth } from "./auth";
 import {
   getAuthUserId,
@@ -136,24 +137,29 @@ export const getCurrentUserWithAccount = query({
     const providerAccountId = authAccount?.providerAccountId; // 이메일 로그인의 경우 이메일
     const email = user?.email || providerAccountId || null;
 
-    // 프로필 이미지 URL 가져오기 (storageId인 경우 URL로 변환)
+    // 프로필 이미지 URL 가져오기
+    // 모든 이미지를 HTTP 라우트를 통해 제공 (COEP 정책 호환을 위해)
+    const convexSiteUrl =
+      process.env.CONVEX_SITE_URL ||
+      "https://cheerful-beagle-175.convex.site";
+
     let imageUrl: string | null = null;
+
+    // 1순위: profile.image (사용자가 업로드한 이미지)
     if (profile?.image) {
-      // profile.image가 storageId인지 URL인지 확인
       if (profile.image.startsWith("http")) {
-        imageUrl = profile.image;
+        // 외부 URL인 경우 프록시를 통해 제공
+        imageUrl = `${convexSiteUrl}/proxy-image?url=${encodeURIComponent(profile.image)}`;
       } else {
-        // storageId인 경우 URL로 변환
-        try {
-          imageUrl = await ctx.storage.getUrl(profile.image as any);
-        } catch {
-          imageUrl = null;
-        }
+        // storageId인 경우 /image 라우트 사용
+        imageUrl = `${convexSiteUrl}/image?id=${profile.image}`;
       }
     }
-    // profile에 이미지가 없으면 user의 이미지 사용 (Google OAuth)
+
+    // 2순위: user.image (Google OAuth 프로필 사진)
     if (!imageUrl && user?.image) {
-      imageUrl = user.image;
+      // Google 등 외부 이미지 URL도 프록시를 통해 제공
+      imageUrl = `${convexSiteUrl}/proxy-image?url=${encodeURIComponent(user.image)}`;
     }
 
     return {

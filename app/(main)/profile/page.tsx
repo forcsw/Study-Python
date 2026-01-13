@@ -212,8 +212,8 @@ export default function ProfilePage() {
           throw new Error('이미지 업로드에 실패했습니다.');
         }
 
-        const { storageId } = await response.json();
-        imageStorageId = storageId;
+        const result = await response.json();
+        imageStorageId = result.storageId;
       }
 
       // 프로필 업데이트
@@ -326,16 +326,14 @@ export default function ProfilePage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {accountInfo?.nickname || user.name || '사용자'}
               </h1>
-              {/* 이메일 로그인 사용자에게만 편집 버튼 표시 */}
-              {isEmailLogin && (
-                <button
-                  onClick={openEditProfileModal}
-                  className="p-1 text-gray-400 hover:text-green-600 transition-colors"
-                  title="닉네임 편집"
-                >
-                  <Edit3 className="w-4 h-4" />
-                </button>
-              )}
+              {/* 모든 사용자에게 닉네임 편집 버튼 표시 */}
+              <button
+                onClick={openEditProfileModal}
+                className="p-1 text-gray-400 hover:text-green-600 transition-colors"
+                title="닉네임 편집"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
             </div>
             {/* 이메일 로그인 사용자: 이름 표시 */}
             {isEmailLogin && accountInfo?.name && (
@@ -629,22 +627,22 @@ export default function ProfilePage() {
         </Modal>
       )}
 
-      {/* 프로필 편집 모달 (이메일 로그인만) */}
-      {isEmailLogin && (
-        <Modal
-          isOpen={showEditProfileModal}
-          onClose={closeEditProfileModal}
-          title="프로필 편집"
-        >
-          <div className="space-y-6">
-            {/* 에러 메시지 */}
-            {profileError && (
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p>
-              </div>
-            )}
+      {/* 프로필 편집 모달 (모든 사용자) */}
+      <Modal
+        isOpen={showEditProfileModal}
+        onClose={closeEditProfileModal}
+        title="프로필 편집"
+      >
+        <div className="space-y-6">
+          {/* 에러 메시지 */}
+          {profileError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p>
+            </div>
+          )}
 
-            {/* 프로필 이미지 */}
+          {/* 프로필 이미지 (이메일 로그인 사용자만 변경 가능) */}
+          {isEmailLogin && (
             <div className="flex flex-col items-center">
               <div
                 className="relative w-32 h-32 bg-green-100 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
@@ -680,46 +678,46 @@ export default function ProfilePage() {
                 클릭하여 이미지 변경 (최대 5MB)
               </p>
             </div>
+          )}
 
-            {/* 닉네임 입력 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                닉네임
-              </label>
-              <input
-                type="text"
-                value={editNickname}
-                onChange={(e) => setEditNickname(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
-                placeholder="닉네임을 입력하세요 (최대 20자)"
-                maxLength={20}
-                disabled={isSavingProfile}
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {editNickname.length}/20
-              </p>
-            </div>
-
-            {/* 버튼 */}
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="outline"
-                onClick={closeEditProfileModal}
-                disabled={isSavingProfile}
-              >
-                취소
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleSaveProfile}
-                disabled={isSavingProfile}
-              >
-                {isSavingProfile ? '저장 중...' : '저장'}
-              </Button>
-            </div>
+          {/* 닉네임 입력 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              닉네임
+            </label>
+            <input
+              type="text"
+              value={editNickname}
+              onChange={(e) => setEditNickname(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
+              placeholder="닉네임을 입력하세요 (최대 20자)"
+              maxLength={20}
+              disabled={isSavingProfile}
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {editNickname.length}/20
+            </p>
           </div>
-        </Modal>
-      )}
+
+          {/* 버튼 */}
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              onClick={closeEditProfileModal}
+              disabled={isSavingProfile}
+            >
+              취소
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveProfile}
+              disabled={isSavingProfile}
+            >
+              {isSavingProfile ? '저장 중...' : '저장'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

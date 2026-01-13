@@ -286,6 +286,162 @@ git push -u origin dev
 
 ---
 
+### 8. 프로필 이미지 CORS 차단 (Cross-Origin-Resource-Policy)
+
+**상황**: 프로필 이미지 업로드 성공, URL도 정상 생성되는데 브라우저에서 이미지가 표시되지 않음 (물음표 아이콘)
+
+**증상 (브라우저 콘솔)**:
+```
+Cannot load image https://cheerful-beagle-175.convex.cloud/api/storage/xxx due to access control checks.
+Cross-Origin-Resource-Policy response header
+```
+
+**처음 시도한 잘못된 진단**:
+- `ctx.storage.getUrl(storageId)`가 실패한다고 생각함
+- `as any` 타입 캐스팅 문제라고 생각함
+- 디버깅 로그 추가해도 URL은 정상 반환됨
+
+**진짜 원인 (핵심!)**:
+
+1. `next.config.mjs`에 Pyodide를 위한 보안 헤더가 설정되어 있음:
+   ```javascript
+   headers: [
+     { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+     { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+   ]
+   ```
+
+2. `Cross-Origin-Embedder-Policy: require-corp`는 **모든 외부 리소스**가 `Cross-Origin-Resource-Policy: cross-origin` 헤더를 가지도록 요구
+
+3. Convex 스토리지 URL (`cheerful-beagle-175.convex.cloud`)은 이 헤더를 포함하지 않음
+
+4. 결과: 브라우저가 이미지 로드를 차단!
+
+**해결 방법**:
+
+Convex HTTP 라우트를 통해 이미지를 제공하고, 응답 헤더에 `Cross-Origin-Resource-Policy: cross-origin` 추가
+
+**파일: `convex/http.ts`**
+```typescript
+import { httpRouter } from "convex/server";
+import { httpAction } from "./_generated/server";  // 중요: httpAction 사용!
+import { Id } from "./_generated/dataModel";
+
+const http = httpRouter();
+
+http.route({
+  path: "/image",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {  // httpAction으로 감싸야 함!
+    const url = new URL(request.url);
+    const storageId = url.searchParams.get("id");
+
+    const blob = await ctx.storage.get(storageId as Id<"_storage">);
+
+    return new Response(blob, {
+      headers: {
+        "Content-Type": blob.type || "image/jpeg",
+        "Cross-Origin-Resource-Policy": "cross-origin",  // 핵심!
+      },
+    });
+  }),
+});
+```
+
+**파일: `convex/users.ts`**
+```typescript
+// 기존: ctx.storage.getUrl(storageId)
+// 변경: HTTP 라우트 URL 생성
+const convexSiteUrl = "https://cheerful-beagle-175.convex.site";
+imageUrl = `${convexSiteUrl}/image?id=${profile.image}`;
+```
+
+**추가 교훈 - TypeScript 오류**:
+
+HTTP 라우트 핸들러는 반드시 `httpAction()`으로 감싸야 함!
+```typescript
+// ❌ 잘못된 방법 (TypeScript 오류 발생)
+handler: async (ctx, request) => { ... }
+
+// ✅ 올바른 방법
+handler: httpAction(async (ctx, request) => { ... })
+```
+
+**핵심 교훈**:
+1. CORS 문제는 서버가 아닌 **브라우저에서 차단**하는 것
+2. `ctx.storage.getUrl()`이 정상 작동해도 브라우저 보안 정책으로 차단될 수 있음
+3. COEP 헤더가 설정된 사이트는 외부 리소스 로드에 제약이 있음
+4. Convex HTTP 라우트를 사용하면 응답 헤더를 완전히 제어 가능
+5. HTTP 라우트 URL은 `.convex.cloud`가 아닌 **`.convex.site`** 도메인 사용
+
+---
+
+### 9. Google OAuth 프로필 이미지도 CORS 차단
+
+**상황**: 이메일 로그인 이미지 수정 후에도 Google 로그인 사용자의 프로필 이미지가 여전히 깨짐
+
+**증상 (브라우저 콘솔)**:
+```
+Cannot load image https://lh3.googleusercontent.com/a/xxx due to access control checks.
+```
+
+**원인**:
+1. Google OAuth 이미지 URL (`lh3.googleusercontent.com`)도 CORP 헤더가 없음
+2. 기존 코드에서 `profile.image`가 HTTP URL인 경우 **프록시 없이 직접 반환**하고 있었음
+
+**잘못된 코드**:
+```typescript
+if (profile.image.startsWith("http")) {
+  imageUrl = profile.image;  // ❌ 외부 URL 직접 반환 → CORS 차단!
+}
+```
+
+**수정된 코드** (`convex/users.ts`):
+```typescript
+const convexSiteUrl = "https://cheerful-beagle-175.convex.site";
+
+// 1순위: profile.image
+if (profile?.image) {
+  if (profile.image.startsWith("http")) {
+    // ✅ 외부 URL도 프록시를 통해 제공
+    imageUrl = `${convexSiteUrl}/proxy-image?url=${encodeURIComponent(profile.image)}`;
+  } else {
+    imageUrl = `${convexSiteUrl}/image?id=${profile.image}`;
+  }
+}
+
+// 2순위: user.image (Google OAuth)
+if (!imageUrl && user?.image) {
+  imageUrl = `${convexSiteUrl}/proxy-image?url=${encodeURIComponent(user.image)}`;
+}
+```
+
+**추가 수정** (`convex/http.ts`):
+```typescript
+// 외부 이미지 프록시 라우트 추가
+http.route({
+  path: "/proxy-image",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const imageUrl = new URL(request.url).searchParams.get("url");
+    const response = await fetch(imageUrl);
+    const blob = await response.blob();
+    return new Response(blob, {
+      headers: {
+        "Cross-Origin-Resource-Policy": "cross-origin",
+      },
+    });
+  }),
+});
+```
+
+**핵심 교훈**:
+1. **모든 외부 이미지 URL**은 COEP 환경에서 프록시가 필요함
+2. Google, Facebook 등 OAuth 제공자의 이미지도 CORP 헤더가 없음
+3. 한 부분을 수정할 때 **관련된 모든 경로**를 함께 확인해야 함
+
+---
+
 ## 주요 기능
 
 ### 인증 시스템
@@ -389,3 +545,5 @@ git push -u origin dev
 | 2026-01-13 | 테스트 가이드라인 문서 추가 (Safari 개인 정보 보호 탭 사용) |
 | 2026-01-13 | 프로필 닉네임/이미지 표시 버그 수정 (storageId→URL 변환, profile.name 우선) |
 | 2026-01-13 | 프로필 페이지에 이름/이메일 라벨 추가 (회원가입 시 입력한 이름 표시) |
+| 2026-01-13 | 프로필 이미지 CORS 문제 해결 (Convex HTTP 라우트로 CORP 헤더 추가) |
+| 2026-01-13 | Google OAuth 프로필 이미지 CORS 문제 해결 (/proxy-image 라우트 추가) |
