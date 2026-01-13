@@ -1,18 +1,31 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Flame, Trophy, Clock, BookOpen, Calendar, Mail, User } from 'lucide-react';
+import { Flame, Trophy, Clock, BookOpen, Calendar, Mail, User, Shield, Trash2, Key } from 'lucide-react';
 import { useAuth, useProgress } from '@/lib/hooks';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { TOTAL_LEVELS } from '@/data/levels';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const { progress, completedLevels } = useProgress({
     userId: user?.id || 'guest',
   });
+
+  // 계정 정보 가져오기 (로그인 방식, 이메일 포함)
+  const accountInfo = useQuery(api.users.getCurrentUserWithAccount);
+  const deleteAccount = useMutation(api.users.deleteMyAccount);
+
+  // 모달 상태
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // 인증되지 않은 사용자는 로그인 페이지로 리다이렉트
   useEffect(() => {
@@ -20,6 +33,34 @@ export default function ProfilePage() {
       router.push('/login?callbackUrl=/profile');
     }
   }, [isLoading, isAuthenticated, router]);
+
+  // 회원탈퇴 처리
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteAccount();
+      await signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('회원탈퇴 실패:', error);
+      alert('회원탈퇴에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  // 로그인 방식 표시 텍스트
+  const getProviderText = (provider: string) => {
+    switch (provider) {
+      case 'google':
+        return 'Google 로그인';
+      case 'password':
+        return '이메일 로그인';
+      default:
+        return '알 수 없음';
+    }
+  };
 
   if (isLoading) {
     return (
@@ -32,6 +73,8 @@ export default function ProfilePage() {
   if (!isAuthenticated || !user) {
     return null;
   }
+
+  const isEmailLogin = accountInfo?.provider === 'password';
 
   const completionPercentage = Math.round((completedLevels.size / TOTAL_LEVELS) * 100);
 
@@ -76,12 +119,22 @@ export default function ProfilePage() {
 
           {/* User Info */}
           <div className="text-center sm:text-left flex-1">
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">
-              {user.name || '사용자'}
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+              {accountInfo?.name || user.name || '사용자'}
             </h1>
-            <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-600">
+            {/* 로그인 방식 표시 */}
+            <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-600 dark:text-gray-300 mb-1">
+              <Shield className="w-4 h-4" />
+              <span className="text-sm font-medium">
+                {accountInfo ? getProviderText(accountInfo.provider) : '로딩 중...'}
+              </span>
+            </div>
+            {/* 이메일 표시 */}
+            <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-500 dark:text-gray-400">
               <Mail className="w-4 h-4" />
-              <span className="text-sm">{user.email}</span>
+              <span className="text-sm">
+                {accountInfo?.email || '이메일 없음'}
+              </span>
             </div>
           </div>
 
@@ -170,13 +223,121 @@ export default function ProfilePage() {
       {/* Activity Section */}
       <Card className="mt-8">
         <div className="p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">활동 기록</h2>
-          <div className="flex items-center gap-2 text-gray-600">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">활동 기록</h2>
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
             <Calendar className="w-5 h-5" />
             <span>마지막 학습: {formatDate(progress.lastActiveDate)}</span>
           </div>
         </div>
       </Card>
+
+      {/* Account Management Section */}
+      <Card className="mt-8">
+        <div className="p-6">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">계정 관리</h2>
+          <div className="space-y-4">
+            {/* 비밀번호 변경 (이메일 로그인만) */}
+            {isEmailLogin && (
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Key className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">비밀번호 변경</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">계정 비밀번호를 변경합니다</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPasswordModal(true)}
+                >
+                  변경
+                </Button>
+              </div>
+            )}
+
+            {/* 회원탈퇴 */}
+            <div className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <div>
+                  <p className="font-medium text-red-700 dark:text-red-400">회원탈퇴</p>
+                  <p className="text-sm text-red-500 dark:text-red-300">모든 데이터가 삭제되며 복구할 수 없습니다</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-600 hover:bg-red-100 dark:border-red-600 dark:text-red-400 dark:hover:bg-red-900/30"
+                onClick={() => setShowDeleteModal(true)}
+              >
+                탈퇴
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* 회원탈퇴 확인 모달 */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="회원탈퇴"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 dark:text-gray-300">
+            정말로 탈퇴하시겠습니까?
+          </p>
+          <p className="text-sm text-red-600 dark:text-red-400">
+            • 모든 학습 기록이 삭제됩니다<br />
+            • 진행률 및 완료한 레벨 정보가 삭제됩니다<br />
+            • 이 작업은 되돌릴 수 없습니다
+          </p>
+          <div className="flex gap-3 justify-end mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={isDeleting}
+            >
+              취소
+            </Button>
+            <Button
+              variant="primary"
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleDeleteAccount}
+              disabled={isDeleting}
+            >
+              {isDeleting ? '처리 중...' : '탈퇴하기'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 비밀번호 변경 모달 (이메일 로그인만) */}
+      {isEmailLogin && (
+        <Modal
+          isOpen={showPasswordModal}
+          onClose={() => setShowPasswordModal(false)}
+          title="비밀번호 변경"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-600 dark:text-gray-300">
+              비밀번호 변경 기능은 준비 중입니다.
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              현재는 로그아웃 후 "비밀번호 찾기" 기능을 이용해주세요.
+            </p>
+            <div className="flex justify-end mt-6">
+              <Button
+                variant="primary"
+                onClick={() => setShowPasswordModal(false)}
+              >
+                확인
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
