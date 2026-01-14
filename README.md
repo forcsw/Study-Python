@@ -602,3 +602,4 @@ Windows: Ctrl + Shift + R
 | 2026-01-13 | 프로필 이미지 CORS 문제 해결 (Convex HTTP 라우트로 CORP 헤더 추가) |
 | 2026-01-13 | Google OAuth 프로필 이미지 CORS 문제 해결 (/proxy-image 라우트 추가) |
 | 2026-01-13 | Google 로그인 사용자 닉네임 편집 기능 추가 (이미지 변경은 이메일 사용자만) |
+| **2026-01-14** | **🚀 v1.0.0 정식 서비스 배포 (dev → main 병합, studycoding.kr 오픈)** |
